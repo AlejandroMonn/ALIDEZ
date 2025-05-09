@@ -1,0 +1,36 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "ES:Este es la parte backend de mi proyecto ALIDEZ que contempla la aplicacion KIMO y en un futuro otras.EN This is the backend part of ALIDEZ a project who contemples the APP KIMO and n the future another ones",
+  "main": "server.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlejandroMonn/ALIDEZ.git"
+  },
+  "keywords": [
+    "Delivery",
+    "Domicilios",
+    "SMBs",
+    "Barrio",
+    "Open",
+    "source",
+    "JS"
+  ],
+  "author": "Alejandro Montoya",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AlejandroMonn/ALIDEZ/issues"
+  },
+  "homepage": "https://github.com/AlejandroMonn/ALIDEZ#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "sqlite3": "^5.1.7"
+  }
+}

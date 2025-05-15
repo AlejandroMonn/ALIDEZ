@@ -419,7 +419,11 @@ app.post('/api/login', (req, res) => {
     if (!user_id || !product_id || !quantity){
       res.status(400).json({error: 'Faltan datos requeridos en el body (user_id, product_id, quantity.'});
       return;
-
+    }
+    if (isNaN(user_id) || isNaN(productId) || isNaN(quantity) || quantity <= 0){
+      res.status(400).json({error: 'Datos invalidos en el body (user_id, product_id, quantity deben ser numeros positivos, quantity > 0.)'});
+      return;
+    }
     // Sentencia SQL : INSERT OR REPLACE INTO inserta un nuevo registro o si ya existe un registro con la misma clave primaria, actualiza el registro
     // con la misma clave primaria (user_id, product_id), lo reemplaza completamente.
     // Esto maneja tanto la adicion inicial como la actializacion de cantidad..
@@ -440,7 +444,86 @@ app.post('/api/login', (req, res) => {
     });
    });
 
+// Ruta para ver el contenido de el carrito de un usuario
+// Espera userId como query parameter: /api/cart?userId=..
+//Opcional: recibir usrId en los headers o body si la peticion fuera POST/PUT/DELETE
+//pero GET con query parameter es mas simple para este caso
+app.get('/api/cart', (req, res) =>{
+  // Obtener userId de los query parameters (ej: ?userId=123)
+  const userId = req.query.userId;
 
+  //Validacion userId
+  if (userId === undefines || isNan (userId){
+    res.status(400).json({error: 'userId debe ser un numero valido requerido como query parameter'});
+    return;
+  }
+
+//Sentencia SQL: JOIN cart_items con products para obtener detalles)
+// Selecciona columnas relevantes del item del carrito y del producto
+const sql = `
+SELECT
+    ci.user_id,
+    ci.product_id,
+    ci.quantity,
+    p.name,
+    p.price,
+    p.image_url,
+    p.stock as product_stock -- Renombrar para evitar conflicto con stock del carrito (aunque no tenemos stock en cart_items)
+FROM cart_items ci
+JOIN products p ON ci.product_id = p.id
+WHERE ci.user_id = ?
+`;
+const params = [userId];
+
+db.all(sql, params, (err, rows) => { // Usamos db.all porque esperamos múltiples filas (ítems del carrito)
+if (err) {
+    console.error('Error al obtener carrito:', err.message);
+    res.status(500).json({ error: err.message });
+    return;
+}
+// Responder con la lista de ítems en el carrito (con detalles del producto)
+res.status(200).json(rows); // rows será un array de objetos { user_id, product_id, quantity, name, price, image_url, ... }
+});
+});
+// Ruta para eliminar un producto del carrito de un usuario
+// Espera userId en el body: { userId: ... }
+// Recibe productId del parámetro de la URL
+app.delete('/api/cart/items/:productId', (req, res) => {
+  const productId = req.params.productId;
+  const { userId } = req.body; // Obtener userId del body para asegurar qué usuario elimina
+
+  // Validaciones básicas
+   if (userId === undefined || productId === undefined) {
+      res.status(400).json({ error: 'Faltan userId en el body o productId en la URL.' });
+      return;
+  }
+  if (isNaN(userId) || isNaN(productId)) {
+       res.status(400).json({ error: 'userId y productId deben ser números.' });
+      return;
+  }
+
+
+  // Sentencia SQL para eliminar el ítem específico del carrito del usuario
+  const sql = `
+      DELETE FROM cart_items
+      WHERE user_id = ? AND product_id = ?
+  `;
+  const params = [userId, productId];
+
+  db.run(sql, params, function(err) { // Usamos function() para acceder a this.changes
+      if (err) {
+          console.error('Error al eliminar item del carrito:', err.message);
+          res.status(500).json({ error: err.message });
+          return;
+      }
+       if (this.changes === 0) {
+          // Si this.changes es 0, significa que no se encontró y eliminó ninguna fila
+           res.status(404).json({ message: 'Item no encontrado en el carrito del usuario.' });
+       } else {
+          res.status(200).json({ message: 'Item de carrito eliminado exitosamente', changes: this.changes });
+       }
+  });
+});
 //- Pedidos ( crear, ver historial, detalles de un pedido)
 //- Inventarui del vendedor ( listar, añadir, editar, eliminar productos)
 //- pedidos del comprador (ver historial, detalles de un pedido)
@@ -470,4 +553,4 @@ app.listen(PORT, () => {
 //Script para crear la base de datos y las tablas: Basandote en el archivo server.js donde se palica la funcion de
 // createTables(db) para crear las tablas en la base de datos. crea el codigo que se necesita para crear todas las 
 // tablas y columnas que se necesitan para la aplicacion estas bases de datos y sus relaciones estan expuestas en
-
+// el archivo database_schema.md pero igualemnte te las voy a dar para que puedas crear las tablas y columnas que necesita la aplicacion

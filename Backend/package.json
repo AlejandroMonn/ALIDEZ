@@ -1,6 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "ES:Este es la parte backend de mi proyecto ALIDEZ que contempla la aplicacion KIMO y en un futuro otras.EN This is the backend part of ALIDEZ a project who contemples the APP KIMO and n the future another ones",
   "main": "server.js",
   "directories": {

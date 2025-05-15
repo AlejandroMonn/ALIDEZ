@@ -524,6 +524,37 @@ app.delete('/api/cart/items/:productId', (req, res) => {
        }
   });
 });
+
+
+// Opcional: Ruta para vaciar todo el carrito de un usuario
+// Espera userId en el body: { userId: ... }
+app.delete('/api/cart', (req, res) => {
+  const { userId } = req.body;
+
+  // Validar userId
+  if (userId === undefined || isNaN(userId)) {
+      res.status(400).json({ error: 'userId requerido en el body.' });
+      return;
+  }
+
+  // Sentencia SQL para eliminar todos los ítems del carrito del usuario
+  const sql = `
+      DELETE FROM cart_items
+      WHERE user_id = ?
+  `;
+  const params = [userId];
+
+  db.run(sql, params, function(err) { // Usamos function() para acceder a this.changes
+      if (err) {
+          console.error('Error al vaciar carrito:', err.message);
+          res.status(500).json({ error: err.message });
+          return;
+      }
+       // this.changes indicará cuántos ítems se eliminaron
+      res.status(200).json({ message: 'Carrito vaciado exitosamente', changes: this.changes });
+  });
+});
+// --- Fin Rutas del Carrito ---
 //- Pedidos ( crear, ver historial, detalles de un pedido)
 //- Inventarui del vendedor ( listar, añadir, editar, eliminar productos)
 //- pedidos del comprador (ver historial, detalles de un pedido)

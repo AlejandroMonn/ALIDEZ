@@ -419,11 +419,7 @@ app.post('/api/login', (req, res) => {
     if (!user_id || !product_id || !quantity){
       res.status(400).json({error: 'Faltan datos requeridos en el body (user_id, product_id, quantity.'});
       return;
-    }
-    if (isNaN(user_id) || isNaN(productId) || isNaN(quantity) || quantity <= 0){
-      res.status(400).json({error: 'Datos invalidos en el body (user_id, product_id, quantity deben ser numeros positivos, quantity > 0.)'});
-      return;
-    }
+
     // Sentencia SQL : INSERT OR REPLACE INTO inserta un nuevo registro o si ya existe un registro con la misma clave primaria, actualiza el registro
     // con la misma clave primaria (user_id, product_id), lo reemplaza completamente.
     // Esto maneja tanto la adicion inicial como la actializacion de cantidad..
@@ -443,15 +439,12 @@ app.post('/api/login', (req, res) => {
       res.status(200).json({message:'Item de carrito añadido/actualizado exitosamente', changes: this.changes});
     });
    });
-// Ruta para ver el contenido del carrito de un usuario
-// Espera userId como query parameter: /api/cart?userId=...
-//Opcional: recibir usrId en los headers o body si la peticion fuera POST/PUT/DELETE,
-//pero GET con query parameter es mas simple para este caso
+
 
 //- Pedidos ( crear, ver historial, detalles de un pedido)
 //- Inventarui del vendedor ( listar, añadir, editar, eliminar productos)
 //- pedidos del comprador (ver historial, detalles de un pedido)
-//-Gestion de usuarios (registro, login, perfil, etc) -- Empezaremos pronto
+//-Gestion de usuarios (registro, login, perfil, etc) --                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          Empezaremos pronto
 //-Manejo de pagos (simulado, integrar pasarela de pagos)
 // ... usando db.all(), db.get(), db.run() para interactuar con la base de datos
 
@@ -459,7 +452,7 @@ app.post('/api/login', (req, res) => {
 // La ruta duplicada '/api/products' fue eliminada
 
 
-// --- Fin Definicion de las rutas de la API---
+// --- Fin Definicion de las rutas de la API--
 
 
 // ---Inicio del servidor---
@@ -477,5 +470,4 @@ app.listen(PORT, () => {
 //Script para crear la base de datos y las tablas: Basandote en el archivo server.js donde se palica la funcion de
 // createTables(db) para crear las tablas en la base de datos. crea el codigo que se necesita para crear todas las 
 // tablas y columnas que se necesitan para la aplicacion estas bases de datos y sus relaciones estan expuestas en
-// el archivo database_schema.md pero igualemnte te las voy a dar para que puedas crear las tablas y columnas que necesita la aplicacion
 

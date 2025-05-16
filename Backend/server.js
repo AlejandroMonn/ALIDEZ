@@ -760,6 +760,62 @@ app.get('/api/orders/:orderId', async (req, res) => { // Usamos 'async' aquí
       console.error('Error al obtener detalles del pedido:', err.message);
       res.status(500).json({ error: err.message });
   }
+  // Validar tipos si se proporcionan
+     if (price !== undefined && isNaN(price)) { res.status(400).json({ error: 'El precio debe ser un número.' }); return; }
+     if (stock !== undefined && isNaN(stock)) { res.status(400).json({ error: 'El stock debe ser un número.' }); return; }
+     if (is_available !== undefined && (is_available !== 0 && is_available !== 1)) { res.status(400).json({ error: 'is_available debe ser 0 o 1.' }); return; }
+
+
+    // Construir dinámicamente la parte SET de la sentencia SQL para solo actualizar los campos proporcionados
+    const fieldsToUpdate = [];
+    const params = [];
+
+    if (name !== undefined) { fieldsToUpdate.push('name = ?'); params.push(name); }
+    if (description !== undefined) { fieldsToUpdate.push('description = ?'); params.push(description); }
+    if (price !== undefined) { fieldsToUpdate.push('price = ?'); params.push(price); }
+    if (stock !== undefined) { fieldsToUpdate.push('stock = ?'); params.push(stock); }
+    if (category !== undefined) { fieldsToUpdate.push('category = ?'); params.push(category); }
+    if (image_url !== undefined) { fieldsToUpdate.push('image_url = ?'); params.push(image_url); }
+     if (is_available !== undefined) { fieldsToUpdate.push('is_available = ?'); params.push(is_available); }
+
+
+    // Si no hay campos para actualizar, responder error (aunque ya validamos arriba)
+    if (fieldsToUpdate.length === 0) {
+         res.status(400).json({ error: 'No se proporcionaron campos válidos para actualizar.' });
+         return;
+     }
+
+    // Añadir el ID del producto y el ID del vendedor a los parámetros para la cláusula WHERE
+    params.push(productId);
+    params.push(sellerId);
+
+
+    // Sentencia SQL para actualizar el producto.
+    // ¡CRUCIAL!: WHERE id = ? AND seller_id = ? asegura que solo se actualiza el producto si pertenece al vendedor.
+    const sql = `
+        UPDATE products
+        SET ${fieldsToUpdate.join(', ')}
+        WHERE id = ? AND seller_id = ?
+    `;
+
+    db.run(sql, params, function(err) { // Usamos function() para this.changes
+        if (err) {
+            console.error('Error al editar producto:', err.message);
+            res.status(500).json({ error: err.message });
+            return;
+        }
+
+        if (this.changes === 0) {
+            // Si this.changes es 0, significa que no se encontró el producto
+            // CON ESE ID Y QUE PERTENECIERA A ESE VENDEDOR.
+            // Podría ser que el producto no existe o que no pertenece a este vendedor.
+             res.status(404).json({ message: 'Producto no encontrado o no pertenece a este vendedor.' });
+         } else {
+            // Si this.changes es 1, se actualizó 1 fila
+            res.status(200).json({ message: 'Producto actualizado exitosamente', productId: productId });
+         }
+    });
+});
 });
 
 // --- Fin Rutas de Pedidos ---

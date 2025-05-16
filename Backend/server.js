@@ -665,7 +665,76 @@ app.post('/api/orders', (req, res) => {
 // ... siguientes rutas de pedidos ...
 
 // --- Fin Rutas de Pedidos ---
+// Ruta para obtener el historial de pedidos de un usuario comprador
+// Recibe userId del parámetro de la URL
+app.get('/api/users/:userId/orders', (req, res) => {
+  const userId = req.params.userId;
 
+  // Validar userId
+  if (isNaN(userId)) {
+      res.status(400).json({ error: 'El ID de usuario debe ser un número válido.' });
+      return;
+  }
+
+  // Sentencia SQL para seleccionar todos los pedidos de un usuario, ordenados por fecha descendente
+  const sql = 'SELECT * FROM orders WHERE user_id = ? ORDER BY order_date DESC';
+  const params = [userId];
+
+  db.all(sql, params, (err, orders) => { // Usamos db.all porque esperamos múltiples pedidos
+      if (err) {
+          console.error('Error al obtener historial de pedidos:', err.message);
+          res.status(500).json({ error: err.message });
+          return;
+      }
+       // Responder con la lista de pedidos del usuario (puede estar vacía si no tiene)
+      res.status(200).json(orders); // orders será un array de objetos pedido
+  });
+});
+// Ruta para obtener los detalles de un pedido específico (incluyendo sus ítems)
+// Recibe orderId del parámetro de la URL
+app.get('/api/orders/:orderId', async (req, res) => { // Usamos 'async' aquí
+  const orderId = req.params.orderId;
+
+  // Validar orderId
+  if (isNaN(orderId)) {
+      res.status(400).json({ error: 'El ID de pedido debe ser un número válido.' });
+      return;
+  }
+
+  try {
+      // --- Consulta 1: Obtener los detalles del pedido principal ---
+      const getOrderSql = 'SELECT * FROM orders WHERE id = ?';
+      const order = await new Promise((resolve, reject) => { // Usamos Promise para async/await con db.get
+          db.get(getOrderSql, [orderId], (err, row) => {
+              if (err) reject(err);
+              else resolve(row);
+          });
+      });
+
+      if (!order) {
+          res.status(404).json({ message: 'Pedido no encontrado.' });
+          return;
+      }
+
+      // --- Consulta 2: Obtener los ítems asociados a este pedido ---
+      // Hacemos JOIN con products para obtener detalles del producto original
+      const getOrderItemsSql = `
+          SELECT
+              oi.product_id,
+              oi.quantity,
+              oi.price_at_purchase, -- Precio al momento de la compra
+              p.name as product_name,
+              p.image_url as product_image_url
+          FROM order_items oi
+          JOIN products p ON oi.product_id = p.id
+          WHERE oi.order_id = ?
+      `;
+      const orderItems = await new Promise((resolve, reject) => { // Usamos Promise para async/await con db.all
+          db.all(getOrderItemsSql, [orderId], (err, rows) => {
+              if (err) reject(err);
+              else resolve(rows);
+          });
+      });
 
 //- Inventarui del vendedor ( listar, añadir, editar, eliminar productos)
 //- pedidos del comprador (ver historial, detalles de un pedido)

@@ -453,7 +453,7 @@ app.get('/api/cart', (req, res) =>{
   const userId = req.query.userId;
 
   //Validacion userId
-  if (userId === undefines || isNan (userId){
+  if (userId === undefined || isNaN(userId)) {
     res.status(400).json({error: 'userId debe ser un numero valido requerido como query parameter'});
     return;
   }
@@ -667,159 +667,6 @@ app.post('/api/orders', (req, res) => {
 
 // --- Fin Rutas de Pedidos ---
 
-// Ruta para obtener el historial de pedidos de un usuario comprador
-
-// Recibe userId del parámetro de la URL
-
-app.get('/api/users/:userId/orders', (req, res) => {
-  const userId = req.params.userId;
-
-  // Validar userId
-  if (isNaN(userId)) {
-      res.status(400).json({ error: 'El ID de usuario debe ser un número válido.' });
-      return;
-  }
-
-  // Sentencia SQL para seleccionar todos los pedidos de un usuario, ordenados por fecha descendente
-  const sql = 'SELECT * FROM orders WHERE user_id = ? ORDER BY order_date DESC';
-  const params = [userId];
-
-  db.all(sql, params, (err, orders) => { // Usamos db.all porque esperamos múltiples pedidos
-      if (err) {
-          console.error('Error al obtener historial de pedidos:', err.message);
-          res.status(500).json({ error: err.message });
-          return;
-      }
-       // Responder con la lista de pedidos del usuario (puede estar vacía si no tiene)
-
-      res.status(200).json(orders); // orders será un array de objetos pedido
-  });
-});
-// Ruta para obtener los detalles de un pedido específico (incluyendo sus ítems)
-
-// Recibe orderId del parámetro de la URL
-app.get('/api/orders/:orderId', async (req, res) => { // Usamos 'async' aquí
-  const orderId = req.params.orderId;
-
-  // Validar orderId
-  if (isNaN(orderId)) {
-      res.status(400).json({ error: 'El ID de pedido debe ser un número válido.' });
-      return;
-  }
-
-  try {
-      // --- Consulta 1: Obtener los detalles del pedido principal ---
-
-      const getOrderSql = 'SELECT * FROM orders WHERE id = ?';
-      const order = await new Promise((resolve, reject) => { // Usamos Promise para async/await con db.get
-          db.get(getOrderSql, [orderId], (err, row) => {
-              if (err) reject(err);
-              else resolve(row);
-          });
-      });
-
-      if (!order) {
-          res.status(404).json({ message: 'Pedido no encontrado.' });
-          return;
-      }
-
-      // --- Consulta 2: Obtener los ítems asociados a este pedido ---
-
-      // Hacemos JOIN con products para obtener detalles del producto original
-
-      const getOrderItemsSql = `
-          SELECT
-              oi.product_id,
-              oi.quantity,
-              oi.price_at_purchase, -- Precio al momento de la compra
-              p.name as product_name,
-              p.image_url as product_image_url
-          FROM order_items oi
-          JOIN products p ON oi.product_id = p.id
-          WHERE oi.order_id = ?
-      `;
-      const orderItems = await new Promise((resolve, reject) => { // Usamos Promise para async/await con db.all
-          db.all(getOrderItemsSql, [orderId], (err, rows) => {
-              if (err) reject(err);
-              else resolve(rows);
-          });
-      });
-
-        // --- Combinar los resultados y responder ---
-
-        // Estructura la respuesta para incluir el pedido principal y una lista de sus ítems
-
-        const orderDetails = {
-          ...order, // Copia todas las propiedades del objeto pedido
-          items: orderItems // Añade el array de ítems
-      };
-
-      res.status(200).json(orderDetails);
-
-  } catch (err) {
-      console.error('Error al obtener detalles del pedido:', err.message);
-      res.status(500).json({ error: err.message });
-  }
-  // Validar tipos si se proporcionan
-     if (price !== undefined && isNaN(price)) { res.status(400).json({ error: 'El precio debe ser un número.' }); return; }
-     if (stock !== undefined && isNaN(stock)) { res.status(400).json({ error: 'El stock debe ser un número.' }); return; }
-     if (is_available !== undefined && (is_available !== 0 && is_available !== 1)) { res.status(400).json({ error: 'is_available debe ser 0 o 1.' }); return; }
-
-
-    // Construir dinámicamente la parte SET de la sentencia SQL para solo actualizar los campos proporcionados
-    const fieldsToUpdate = [];
-    const params = [];
-
-    if (name !== undefined) { fieldsToUpdate.push('name = ?'); params.push(name); }
-    if (description !== undefined) { fieldsToUpdate.push('description = ?'); params.push(description); }
-    if (price !== undefined) { fieldsToUpdate.push('price = ?'); params.push(price); }
-    if (stock !== undefined) { fieldsToUpdate.push('stock = ?'); params.push(stock); }
-    if (category !== undefined) { fieldsToUpdate.push('category = ?'); params.push(category); }
-    if (image_url !== undefined) { fieldsToUpdate.push('image_url = ?'); params.push(image_url); }
-     if (is_available !== undefined) { fieldsToUpdate.push('is_available = ?'); params.push(is_available); }
-
-
-    // Si no hay campos para actualizar, responder error (aunque ya validamos arriba)
-    if (fieldsToUpdate.length === 0) {
-         res.status(400).json({ error: 'No se proporcionaron campos válidos para actualizar.' });
-         return;
-     }
-
-    // Añadir el ID del producto y el ID del vendedor a los parámetros para la cláusula WHERE
-    params.push(productId);
-    params.push(sellerId);
-
-
-    // Sentencia SQL para actualizar el producto.
-    // ¡CRUCIAL!: WHERE id = ? AND seller_id = ? asegura que solo se actualiza el producto si pertenece al vendedor.
-    const sql = `
-        UPDATE products
-        SET ${fieldsToUpdate.join(', ')}
-        WHERE id = ? AND seller_id = ?
-    `;
-
-    db.run(sql, params, function(err) { // Usamos function() para this.changes
-        if (err) {
-            console.error('Error al editar producto:', err.message);
-            res.status(500).json({ error: err.message });
-            return;
-        }
-
-        if (this.changes === 0) {
-            // Si this.changes es 0, significa que no se encontró el producto
-            // CON ESE ID Y QUE PERTENECIERA A ESE VENDEDOR.
-            // Podría ser que el producto no existe o que no pertenece a este vendedor.
-             res.status(404).json({ message: 'Producto no encontrado o no pertenece a este vendedor.' });
-         } else {
-            // Si this.changes es 1, se actualizó 1 fila
-            res.status(200).json({ message: 'Producto actualizado exitosamente', productId: productId });
-         }
-    });
-});
-});
-
-// --- Fin Rutas de Pedidos ---
-
 //- Inventarui del vendedor ( listar, añadir, editar, eliminar productos)
 
 // --- Rutas de Gestión de Inventario del Vendedor ---
@@ -912,10 +759,281 @@ app.put('/api/sellers/:sellerId/products/:productId', (req, res) => {
        res.status(400).json({ error: 'Se requiere al menos un campo para actualizar (name, price, stock, category, image_url, is_available).' });
        return;
    }
+     // Validar tipos si se proporcionan
+     if (price !== undefined && isNaN(price)) { res.status(400).json({ error: 'El precio debe ser un número.' }); return; }
+     if (stock !== undefined && isNaN(stock)) { res.status(400).json({ error: 'El stock debe ser un número.' }); return; }
+     if (is_available !== undefined && (is_available !== 0 && is_available !== 1)) { res.status(400).json({ error: 'is_available debe ser 0 o 1.' }); return; }
 
+
+    // Construir dinámicamente la parte SET de la sentencia SQL para solo actualizar los campos proporcionados
+    const fieldsToUpdate = [];
+    const params = [];
+
+    if (name !== undefined) { fieldsToUpdate.push('name = ?'); params.push(name); }
+    if (description !== undefined) { fieldsToUpdate.push('description = ?'); params.push(description); }
+    if (price !== undefined) { fieldsToUpdate.push('price = ?'); params.push(price); }
+    if (stock !== undefined) { fieldsToUpdate.push('stock = ?'); params.push(stock); }
+    if (category !== undefined) { fieldsToUpdate.push('category = ?'); params.push(category); }
+    if (image_url !== undefined) { fieldsToUpdate.push('image_url = ?'); params.push(image_url); }
+     if (is_available !== undefined) { fieldsToUpdate.push('is_available = ?'); params.push(is_available); }
+
+
+    // Si no hay campos para actualizar, responder error (aunque ya validamos arriba)
+    if (fieldsToUpdate.length === 0) {
+         res.status(400).json({ error: 'No se proporcionaron campos válidos para actualizar.' });
+         return;
+     }
+
+    // Añadir el ID del producto y el ID del vendedor a los parámetros para la cláusula WHERE
+    params.push(productId);
+    params.push(sellerId);
+
+
+    // Sentencia SQL para actualizar el producto.
+    // ¡CRUCIAL!: WHERE id = ? AND seller_id = ? asegura que solo se actualiza el producto si pertenece al vendedor.
+    const sql = `
+        UPDATE products
+        SET ${fieldsToUpdate.join(', ')}
+        WHERE id = ? AND seller_id = ?
+    `;
+
+    db.run(sql, params, function(err) { // Usamos function() para this.changes
+        if (err) {
+            console.error('Error al editar producto:', err.message);
+            res.status(500).json({ error: err.message });
+            return;
+        }
+
+        if (this.changes === 0) {
+            // Si this.changes es 0, significa que no se encontró el producto
+            // CON ESE ID Y QUE PERTENECIERA A ESE VENDEDOR.
+            // Podría ser que el producto no existe o que no pertenece a este vendedor.
+             res.status(404).json({ message: 'Producto no encontrado o no pertenece a este vendedor.' });
+         } else {
+            // Si this.changes es 1, se actualizó 1 fila
+            res.status(200).json({ message: 'Producto actualizado exitosamente', productId: productId });
+         }
+    });
+});
+
+// Ruta para que un vendedor elimine uno de sus productos
+// Recibe sellerId y productId de los parámetros de la URL
+app.delete('/api/sellers/:sellerId/products/:productId', (req, res) => {
+  const sellerId = req.params.sellerId;
+  const productId = req.params.productId;
+
+  // Validar IDs
+   if (isNaN(sellerId) || isNaN(productId)) {
+       res.status(400).json({ error: 'Los IDs de vendedor y producto deben ser números válidos.' });
+       return;
+   }
+
+  // Sentencia SQL para eliminar el producto.
+  // ¡CRUCIAL!: WHERE id = ? AND seller_id = ? asegura que solo se elimina el producto si pertenece al vendedor.
+  const sql = `
+      DELETE FROM products
+      WHERE id = ? AND seller_id = ?
+  `;
+  const params = [productId, sellerId];
+
+  db.run(sql, params, function(err) { // Usamos function() para this.changes
+      if (err) {
+          console.error('Error al eliminar producto:', err.message);
+          res.status(500).json({ error: err.message });
+          return;
+      }
+
+       if (this.changes === 0) {
+          // Si this.changes es 0, significa que no se encontró el producto
+          // CON ESE ID Y QUE PERTENECIERA A ESE VENDEDOR.
+           res.status(404).json({ message: 'Producto no encontrado o no pertenece a este vendedor.' });
+       } else {
+          // Si this.changes es 1, se eliminó 1 fila
+          res.status(200).json({ message: 'Producto eliminado exitosamente', productId: productId });
+       }
+  });
+});
+
+// --- Fin Rutas de Gestión de Inventario del Vendedor ---
 //- pedidos del comprador (ver historial, detalles de un pedido)
-//-Gestion de usuarios (registro, login, perfil, etc) --    
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Empezaremos pronto
+// --- Rutas de Pedidos Recibidos por el Vendedor ---
+
+// Ruta para obtener la lista de pedidos que contienen productos de un vendedor específico
+// Recibe sellerId del parámetro de la URL
+app.get('/api/sellers/:sellerId/received-orders', (req, res) => {
+  const sellerId = req.params.sellerId;
+
+  // Validar sellerId
+  if (isNaN(sellerId)) {
+      res.status(400).json({ error: 'El ID de vendedor debe ser un número válido.' });
+      return;
+  }
+
+  // Sentencia SQL para seleccionar pedidos (DISTINCT para evitar duplicados si un pedido tiene varios ítems del mismo vendedor)
+  // que contienen productos de este vendedor.
+  const sql = `
+      SELECT DISTINCT o.*
+      FROM orders o
+      JOIN order_items oi ON o.id = oi.order_id
+      JOIN products p ON oi.product_id = p.id
+      WHERE p.seller_id = ?
+      ORDER BY o.order_date DESC -- Mostrar los pedidos más recientes primero
+  `;
+  const params = [sellerId];
+
+  db.all(sql, params, (err, orders) => { // db.all porque esperamos múltiples pedidos
+      if (err) {
+          console.error('Error al obtener lista de pedidos recibidos:', err.message);
+          res.status(500).json({ error: err.message });
+          return;
+      }
+      // Responder con la lista de pedidos (objetos pedido completos)
+      res.status(200).json(orders); // orders será un array de objetos pedido
+  });
+});
+
+// ... siguiente ruta (detalles de pedido recibido) ...
+// Ruta para obtener los detalles de un pedido recibido específico para un vendedor
+// Muestra los detalles del pedido y SOLO los ítems que pertenecen a este vendedor
+// Incluye info del comprador y dirección de entrega
+app.get('/api/sellers/:sellerId/received-orders/:orderId', async (req, res) => { // Usamos 'async'
+  const sellerId = req.params.sellerId;
+  const orderId = req.params.orderId;
+
+  // Validar IDs
+  if (isNaN(sellerId) || isNaN(orderId)) {
+      res.status(400).json({ error: 'Los IDs de vendedor y pedido deben ser números válidos.' });
+      return;
+  }
+
+  try {
+      // --- Paso 1: Verificar que el pedido contenga productos de este vendedor ---
+      // Esto es una verificación de seguridad para que un vendedor no vea cualquier pedido.
+      const checkOrderRelevanceSql = `
+          SELECT COUNT(*) AS count
+          FROM order_items oi
+          JOIN products p ON oi.product_id = p.id
+          WHERE oi.order_id = ? AND p.seller_id = ?
+      `;
+      const relevanceCheck = await new Promise((resolve, reject) => {
+           db.get(checkOrderRelevanceSql, [orderId, sellerId], (err, row) => {
+               if (err) reject(err);
+               else resolve(row);
+           });
+      });
+
+      if (!relevanceCheck || relevanceCheck.count === 0) {
+          // Si el pedido no existe o no contiene productos de este vendedor
+          res.status(404).json({ message: 'Pedido no encontrado o no contiene productos de este vendedor.' });
+          return;
+      }
+
+      // --- Paso 2: Obtener los detalles del pedido principal, comprador y dirección ---
+      // Hacemos JOIN con users (para info del comprador) y addresses (para dirección de entrega)
+      const getOrderDetailsSql = `
+          SELECT
+              o.*,
+              u.username as buyer_username,
+              u.email as buyer_email,
+              u.phone_number as buyer_phone,
+              a.address_line1,
+              a.address_line2,
+              a.city,
+              a.state_province,
+              a.postal_code
+          FROM orders o
+          JOIN users u ON o.user_id = u.id
+          JOIN addresses a ON o.delivery_address_id = a.id
+          WHERE o.id = ?
+      `;
+      const order = await new Promise((resolve, reject) => {
+          db.get(getOrderDetailsSql, [orderId], (err, row) => {
+              if (err) reject(err);
+              else resolve(row);
+          });
+      });
+
+       if (!order) { // Esto no debería pasar si el check anterior fue > 0, pero por seguridad
+          res.status(404).json({ message: 'Pedido principal no encontrado (inconsistencia).' });
+          return;
+      }
+
+
+      // --- Paso 3: Obtener SOLO los ítems de este pedido que pertenecen a ESTE vendedor ---
+      const getSellerOrderItemsSql = `
+          SELECT
+              oi.product_id,
+              oi.quantity,
+              oi.price_at_purchase, -- Precio al momento de la compra
+              p.name as product_name,
+              p.description as product_description,
+              p.image_url as product_image_url
+          FROM order_items oi
+          JOIN products p ON oi.product_id = p.id
+          WHERE oi.order_id = ? AND p.seller_id = ?
+      `;
+      const sellerOrderItems = await new Promise((resolve, reject) => {
+          db.all(getSellerOrderItemsSql, [orderId, sellerId], (err, rows) => {
+              if (err) reject(err);
+              else resolve(rows);
+          });
+      });
+
+      // --- Combinar los resultados y responder ---
+      // Estructura la respuesta para incluir el pedido principal, info del comprador/dirección,
+      // y la lista de ítems *del vendedor* en ese pedido.
+      const receivedOrderDetails = {
+          ...order, // Copia todas las propiedades del objeto pedido, comprador y dirección
+          seller_items_in_this_order: sellerOrderItems // Añade el array de ítems que le corresponden al vendedor
+      };
+
+      res.status(200).json(receivedOrderDetails);
+
+  } catch (err) {
+      console.error('Error al obtener detalles del pedido recibido:', err.message);
+      res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Fin Rutas de Pedidos Recibidos por el Vendedor ---
+// --- Rutas de Pedidos Recibidos por el Vendedor ---
+
+// Ruta para obtener la lista de pedidos que contienen productos de un vendedor específico
+// Recibe sellerId del parámetro de la URL
+app.get('/api/sellers/:sellerId/received-orders', (req, res) => {
+  const sellerId = req.params.sellerId;
+
+  // Validar sellerId
+  if (isNaN(sellerId)) {
+      res.status(400).json({ error: 'El ID de vendedor debe ser un número válido.' });
+      return;
+  }
+
+  // Sentencia SQL para seleccionar pedidos (DISTINCT para evitar duplicados si un pedido tiene varios ítems del mismo vendedor)
+  // que contienen productos de este vendedor.
+  const sql = `
+      SELECT DISTINCT o.*
+      FROM orders o
+      JOIN order_items oi ON o.id = oi.order_id
+      JOIN products p ON oi.product_id = p.id
+      WHERE p.seller_id = ?
+      ORDER BY o.order_date DESC -- Mostrar los pedidos más recientes primero
+  `;
+  const params = [sellerId];
+
+  db.all(sql, params, (err, orders) => { // db.all porque esperamos múltiples pedidos
+      if (err) {
+          console.error('Error al obtener lista de pedidos recibidos:', err.message);
+          res.status(500).json({ error: err.message });
+          return;
+      }
+      // Responder con la lista de pedidos (objetos pedido completos)
+      res.status(200).json(orders); // orders será un array de objetos pedido
+  });
+});
+
+// ... siguiente ruta (detalles de pedido recibido) ...
+//-Gestion de usuarios (registro, login, perfil, etc) -- Empezaremos pronto
 //-Manejo de pagos (simulado, integrar pasarela de pagos)
 
 // ... usando db.all(), db.get(), db.run() para interactuar con la base de datos
@@ -954,3 +1072,4 @@ app.listen(PORT, () => {
 // el archivo database_schema.md pero igualemnte te las voy a dar para que puedas crear las tablas y columnas que necesita la aplicacion
 
 // para que puedas crear las tablas y columnas que necesita la aplicacion
+}); // Close the app.listen callback

@@ -554,8 +554,119 @@ app.delete('/api/cart', (req, res) => {
       res.status(200).json({ message: 'Carrito vaciado exitosamente', changes: this.changes });
   });
 });
+
+
 // --- Fin Rutas del Carrito ---
 //- Pedidos ( crear, ver historial, detalles de un pedido)
+
+// Ruta para que un usuario (comprador) realice un pedido a partir de su carrito
+// Espera en el body: { userId: ..., deliveryAddressId: ..., paymentMethod?: ... }
+app.post('/api/orders', (req, res) => {
+  const { userId, deliveryAddressId } = req.body; // Podrías añadir paymentMethod si lo modelas
+
+  // Validaciones básicas
+  if (userId === undefined || deliveryAddressId === undefined) {
+      res.status(400).json({ error: 'Faltan campos requeridos (userId, deliveryAddressId).' });
+      return;
+  }
+  if (isNaN(userId) || isNaN(deliveryAddressId)) {
+      res.status(400).json({ error: 'userId y deliveryAddressId deben ser números.' });
+      return;
+  }
+
+  // --- Secuencia de operaciones para realizar el pedido ---
+  // NOTA: Para un prototipo simple, ejecutamos las operaciones secuencialmente.
+  // En una aplicación real, estas operaciones deberían ejecutarse dentro de una
+  // TRANSACCIÓN de base de datos para asegurar que sean atómicas (o se completan todas, o ninguna).
+  // SQLite soporta transacciones, pero implementarlas con el API de callbacks de sqlite3
+  // puede añadir bastante complejidad de manejo de errores y rollback.
+
+  database.serialize(() => { // Usamos serialize para asegurar el orden
+      // 1. Obtener los ítems del carrito del usuario
+      const getCartSql = 'SELECT ci.product_id, ci.quantity, p.price FROM cart_items ci JOIN products p ON ci.product_id = p.id WHERE ci.user_id = ?';
+      database.all(getCartSql, [userId], (err, cartItems) => {
+          if (err) {
+              console.error('Error al obtener carrito para pedido:', err.message);
+              res.status(500).json({ error: err.message });
+              // En una transacción real, harías ROLLBACK aquí
+              return;
+          }
+
+          if (cartItems.length === 0) {
+              res.status(400).json({ message: 'El carrito del usuario está vacío.' });
+              // En una transacción real, harías ROLLBACK aquí
+              return;
+          }
+
+          // Calcular el monto total del pedido
+          const totalAmount = cartItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+
+          // 2. Crear el registro principal del pedido en la tabla 'orders'
+          const createOrderSql = `
+              INSERT INTO orders (user_id, delivery_address_id, total_amount, status, payment_status)
+              VALUES (?, ?, ?, ?, ?)
+          `;
+          const createOrderParams = [userId, deliveryAddressId, totalAmount, 'pendiente', 'sin pagar']; // Estado iniciales
+          database.run(createOrderSql, createOrderParams, function(err) { // Usamos function() para this.lastID
+              if (err) {
+                  console.error('Error al crear pedido:', err.message);
+                  res.status(500).json({ error: err.message });
+                  // En una transacción real, harías ROLLBACK aquí
+                  return;
+              }
+
+              const orderId = this.lastID; // ID del pedido recién creado
+
+              // 3. Insertar los ítems del pedido en la tabla 'order_items'
+              // Esto debe hacerse para cada item del carrito
+              let itemsInserted = 0;
+              cartItems.forEach(item => {
+                  const createOrderItemSql = `
+                      INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase)
+                      VALUES (?, ?, ?, ?)
+                  `;
+                  const createOrderItemParams = [orderId, item.product_id, item.quantity, item.price]; // Usar el precio del producto en el momento de la compra
+
+                  database.run(createOrderItemSql, createOrderItemParams, (err) => {
+                      if (err) {
+                          console.error('Error al crear item de pedido:', err.message);
+                          // Esto es problemático en el modelo secuencial. En transacción real, harías ROLLBACK.
+                          // Para el prototipo, simplemente logueamos y el pedido estará incompleto.
+                          return; // No salimos de la función externa para permitir que los otros ítems se inserten si es posible
+                      }
+                       itemsInserted++;
+                       // Opcional: Reducir stock aquí (si no se hizo en una fase posterior más robusta)
+                       // database.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id], (err) => { /* manejar error */ });
+
+                       // Cuando todos los ítems se hayan intentado insertar (exitoso o con error logueado)
+                       if (itemsInserted === cartItems.length) {
+                           // 4. Vaciar el carrito del usuario (si todos los ítems fueron procesados, incluso con errores intermedios logueados)
+                           const clearCartSql = 'DELETE FROM cart_items WHERE user_id = ?';
+                           database.run(clearCartSql, [userId], (err) => {
+                               if (err) {
+                                  console.error('Error al vaciar carrito después de pedido:', err.message);
+                                  // Esto también es problemático en secuencial. En transacción real, harías ROLLBACK.
+                                  // Para el prototipo, simplemente logueamos.
+                               }
+                               // --- Pedido realizado (o intentado) ---
+                               // Responder al cliente
+                               res.status(201).json({ message: 'Pedido realizado exitosamente', orderId: orderId, totalAmount: totalAmount });
+                               // En una transacción real, harías COMMIT aquí si todo salió bien
+                           });
+                       }
+                  });
+              });
+          });
+      });
+  });
+  // --- Fin Secuencia de operaciones ---
+});
+
+// ... siguientes rutas de pedidos ...
+
+// --- Fin Rutas de Pedidos ---
+
+
 //- Inventarui del vendedor ( listar, añadir, editar, eliminar productos)
 //- pedidos del comprador (ver historial, detalles de un pedido)
 //-Gestion de usuarios (registro, login, perfil, etc) --                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          Empezaremos pronto

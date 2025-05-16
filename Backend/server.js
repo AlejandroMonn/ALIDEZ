@@ -631,6 +631,7 @@ app.post('/api/orders', (req, res) => {
                       if (err) {
                           console.error('Error al crear item de pedido:', err.message);
                           // Esto es problemático en el modelo secuencial. En transacción real, harías ROLLBACK.
+
                           // Para el prototipo, simplemente logueamos y el pedido estará incompleto.
                           return; // No salimos de la función externa para permitir que los otros ítems se inserten si es posible
                       }
@@ -665,8 +666,11 @@ app.post('/api/orders', (req, res) => {
 // ... siguientes rutas de pedidos ...
 
 // --- Fin Rutas de Pedidos ---
+
 // Ruta para obtener el historial de pedidos de un usuario comprador
+
 // Recibe userId del parámetro de la URL
+
 app.get('/api/users/:userId/orders', (req, res) => {
   const userId = req.params.userId;
 
@@ -687,10 +691,12 @@ app.get('/api/users/:userId/orders', (req, res) => {
           return;
       }
        // Responder con la lista de pedidos del usuario (puede estar vacía si no tiene)
+
       res.status(200).json(orders); // orders será un array de objetos pedido
   });
 });
 // Ruta para obtener los detalles de un pedido específico (incluyendo sus ítems)
+
 // Recibe orderId del parámetro de la URL
 app.get('/api/orders/:orderId', async (req, res) => { // Usamos 'async' aquí
   const orderId = req.params.orderId;
@@ -703,6 +709,7 @@ app.get('/api/orders/:orderId', async (req, res) => { // Usamos 'async' aquí
 
   try {
       // --- Consulta 1: Obtener los detalles del pedido principal ---
+
       const getOrderSql = 'SELECT * FROM orders WHERE id = ?';
       const order = await new Promise((resolve, reject) => { // Usamos Promise para async/await con db.get
           db.get(getOrderSql, [orderId], (err, row) => {
@@ -717,7 +724,9 @@ app.get('/api/orders/:orderId', async (req, res) => { // Usamos 'async' aquí
       }
 
       // --- Consulta 2: Obtener los ítems asociados a este pedido ---
+
       // Hacemos JOIN con products para obtener detalles del producto original
+
       const getOrderItemsSql = `
           SELECT
               oi.product_id,
@@ -736,10 +745,123 @@ app.get('/api/orders/:orderId', async (req, res) => { // Usamos 'async' aquí
           });
       });
 
+        // --- Combinar los resultados y responder ---
+
+        // Estructura la respuesta para incluir el pedido principal y una lista de sus ítems
+
+        const orderDetails = {
+          ...order, // Copia todas las propiedades del objeto pedido
+          items: orderItems // Añade el array de ítems
+      };
+
+      res.status(200).json(orderDetails);
+
+  } catch (err) {
+      console.error('Error al obtener detalles del pedido:', err.message);
+      res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Fin Rutas de Pedidos ---
+
 //- Inventarui del vendedor ( listar, añadir, editar, eliminar productos)
+
+// --- Rutas de Gestión de Inventario del Vendedor ---
+
+// Ruta para obtener todos los productos de un vendedor específico
+
+// Recibe sellerId del parámetro de la URL
+
+app.get('/api/sellers/:sellerId/products', (req, res) => {
+  const sellerId = req.params.sellerId;
+
+  // Validar sellerId
+  if (isNaN(sellerId)) {
+      res.status(400).json({ error: 'El ID de vendedor debe ser un número válido.' });
+      return;
+  }
+
+  // Sentencia SQL para seleccionar todos los productos que pertenecen a este vendedor
+  const sql = 'SELECT * FROM products WHERE seller_id = ? ORDER BY created_at DESC'; // Ordenar por fecha de creación
+  const params = [sellerId];
+
+  db.all(sql, params, (err, products) => { // db.all porque esperamos múltiples productos
+      if (err) {
+          console.error('Error al obtener inventario del vendedor:', err.message);
+          res.status(500).json({ error: err.message });
+          return;
+      }
+      // Responder con la lista de productos del vendedor (puede estar vacía)
+      res.status(200).json(products); // products será un array de objetos producto
+  });
+});
+
+// ... siguientes rutas de inventario ...
+
+// Ruta para que un vendedor añada un nuevo producto
+
+// Recibe sellerId del parámetro de la URL
+
+// Espera en el body: { name, description, price, stock, category, image_url }
+app.post('/api/sellers/:sellerId/products', (req, res) => {
+  const sellerId = req.params.sellerId;
+  const { name, description, price, stock, category, image_url } = req.body;
+
+  // Validaciones básicas de entrada
+  if (!name || price === undefined || stock === undefined || isNaN(sellerId) || isNaN(price) || isNaN(stock) || stock < 0) {
+       res.status(400).json({ error: 'Faltan campos requeridos o son inválidos (name, price, stock, sellerId numérico).' });
+      return;
+  }
+   if (sellerId === undefined) { // Doble check aunque esté en URL
+       res.status(400).json({ error: 'ID de vendedor no proporcionado en la URL.' });
+       return;
+   }
+
+  // Sentencia SQL para insertar un nuevo producto. seller_id se obtiene de la URL.
+  const sql = `
+      INSERT INTO products (name, description, price, stock, category, seller_id, image_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+  `;
+  const params = [name, description, price, stock, category, sellerId, image_url];
+
+  db.run(sql, params, function(err) { // Usamos function() para this.lastID
+      if (err) {
+          console.error('Error al añadir nuevo producto:', err.message);
+          res.status(500).json({ error: err.message });
+          return;
+      }
+      // Responder con estado 201 (Creado) y el ID del nuevo producto
+      res.status(201).json({ message: 'Producto añadido exitosamente', productId: this.lastID });
+  });
+});
+// Ruta para que un vendedor edite uno de sus productos
+
+// Recibe sellerId y productId de los parámetros de la URL
+
+// Espera en el body los datos a actualizar: { name, description, price, stock, category, image_url, is_available }
+
+app.put('/api/sellers/:sellerId/products/:productId', (req, res) => {
+  const sellerId = req.params.sellerId;
+  const productId = req.params.productId;
+  // Obtener solo los campos que pueden ser actualizados por el vendedor
+  const { name, description, price, stock, category, image_url, is_available } = req.body;
+
+  // Validaciones básicas
+   if (isNaN(sellerId) || isNaN(productId)) {
+       res.status(400).json({ error: 'Los IDs de vendedor y producto deben ser números válidos.' });
+       return;
+   }
+   // Validación mínima de al menos un campo a actualizar o campos clave
+    if (!name && price === undefined && stock === undefined && category === undefined && image_url === undefined && is_available === undefined) {
+       res.status(400).json({ error: 'Se requiere al menos un campo para actualizar (name, price, stock, category, image_url, is_available).' });
+       return;
+   }
+
 //- pedidos del comprador (ver historial, detalles de un pedido)
-//-Gestion de usuarios (registro, login, perfil, etc) --                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          Empezaremos pronto
+//-Gestion de usuarios (registro, login, perfil, etc) --    
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Empezaremos pronto
 //-Manejo de pagos (simulado, integrar pasarela de pagos)
+
 // ... usando db.all(), db.get(), db.run() para interactuar con la base de datos
 
 
@@ -751,7 +873,9 @@ app.get('/api/orders/:orderId', async (req, res) => { // Usamos 'async' aquí
 
 // ---Inicio del servidor---
 // El servidor solo empieza a escuchar solicitudes DESPUES de intentar conectar a la base de datos
+
 // Esto asegura que la Base de datos este lista para recibir solicitudes ( o que la conexion se haya roto o se reporte un error)
+
 // antes de que la app este disponible para recibir solicitudes.
 app.listen(PORT, () => {
   // Corregido: Usar comillas invertidas (backticks) para interpolar ${PORT}
@@ -759,9 +883,18 @@ app.listen(PORT, () => {
 });
 
 //--- Fin del servidor---
+
 //ahora vamos a empezar a revisar las bases de datos y como vamos a intehrar la creacion de las bases de
+
 // datos que se necesitan para la aplicacion. y como vamos a integrar las rutas que se necesitan para la aplicacion.
+
 //Script para crear la base de datos y las tablas: Basandote en el archivo server.js donde se palica la funcion de
+
+
 // createTables(db) para crear las tablas en la base de datos. crea el codigo que se necesita para crear todas las 
+
 // tablas y columnas que se necesitan para la aplicacion estas bases de datos y sus relaciones estan expuestas en
+
 // el archivo database_schema.md pero igualemnte te las voy a dar para que puedas crear las tablas y columnas que necesita la aplicacion
+
+// para que puedas crear las tablas y columnas que necesita la aplicacion

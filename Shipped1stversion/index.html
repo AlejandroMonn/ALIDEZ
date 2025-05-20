@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KIMO - Domicilios de Barrio</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- PANTALLA DE REGISTRO INICIAL -->
+        <div id="registration-screen" class="screen active">
+            <div class="registration-container">
+                <div class="registration-sidebar">
+                    <div class="logo-sidebar">KIMO</div>
+                    <div class="step active">
+                        <div class="step-circle"></div>
+                        <div class="step-label">REGÍSTRATE</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step">
+                        <div class="step-circle"></div>
+                        <div class="step-label">INGRESA TU DIRECCIÓN</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step">
+                        <div class="step-circle"></div>
+                        <div class="step-label">DISFRUTA DE TODOS LOS BENEFICIOS QUE TENEMOS</div>
+                    </div>
+                    <div class="benefits">
+                        <p><i class="fas fa-check"></i> ENCUENTRAS LA TIENDA MÁS BARATA Y/O MÁS CERCANA</p>
+                        <p><i class="fas fa-check"></i> AYUDA A MILES DE FAMILIAS QUE DEPENDEN DE ESTOS NEGOCIOS</p>
+                        <p><i class="fas fa-check"></i> PAGA COMO QUIERAS</p>
+                    </div>
+                </div>
+                <div class="registration-content">
+                    <div class="logo-main">KIMO</div>
+                    <h2>Registrarte con tu correo</h2>
+                    <form id="email-form">
+                        <div class="input-group">
+                            <i class="fas fa-user icon"></i>
+                            <input type="email" id="email" placeholder="Tu correo electrónico" required>
+                        </div>
+                        <button type="submit" class="btn-primary">INGRESAR</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANTALLA DE DIRECCIÓN Y NOMBRE -->
+        <div id="address-screen" class="screen">
+            <div class="form-container">
+                <div class="logo-main">KIMO</div>
+                <h2>Completa tu información</h2>
+                <form id="address-form">
+                    <div class="input-group">
+                        <i class="fas fa-user-tag icon"></i>
+                        <input type="text" id="name" placeholder="Tu nombre completo" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-map-marker-alt icon"></i>
+                        <input type="text" id="address" placeholder="Tu dirección de entrega" required>
+                    </div>
+                    <button type="submit" class="btn-primary">GUARDAR Y CONTINUAR</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- PANTALLA DE LISTA DE TIENDAS -->
+        <div id="store-list-screen" class="screen">
+            <header class="app-header">
+                <div class="logo-header">KIMO</div>
+                <div class="search-bar">
+                    <input type="text" placeholder="Buscar productos, tiendas...">
+                    <button><i class="fas fa-search"></i></button>
+                </div>
+                <div class="user-actions">
+                    <span id="cart-info">Carrito (0)</span>
+                    <i class="fas fa-shopping-cart" id="cart-icon"></i>
+                    <span id="user-name-display"></span> <i class="fas fa-user-circle"></i>
+                </div>
+            </header>
+            <div class="header-banner">
+                <!-- Fondo con patrón de vegetales -->
+            </div>
+            <main class="store-list-container">
+                <h2>Tiendas Disponibles</h2>
+                <div id="stores-grid" class="stores-grid">
+                    <!-- Las tiendas se cargarán aquí por JS -->
+                </div>
+            </main>
+        </div>
+
+        <!-- PANTALLA DE PRODUCTOS DE UNA TIENDA -->
+        <div id="product-list-screen" class="screen">
+            <header class="app-header">
+                <div class="logo-header">KIMO</div>
+                <div class="search-bar">
+                    <input type="text" placeholder="Buscar en esta tienda...">
+                    <button><i class="fas fa-search"></i></button>
+                </div>
+                <div class="user-actions">
+                    <span id="cart-info-products">Carrito (0)</span>
+                    <i class="fas fa-shopping-cart" id="cart-icon-products"></i>
+                    <span id="user-name-display-products"></span> <i class="fas fa-user-circle"></i>
+                </div>
+            </header>
+             <div class="header-banner-products">
+                <!-- Fondo con patrón de vegetales -->
+            </div>
+            <main class="product-list-container">
+                <button id="back-to-stores" class="btn-secondary"><i class="fas fa-arrow-left"></i> Volver a Tiendas</button>
+                <h2 id="store-name-products">Productos de [Nombre Tienda]</h2>
+                <div class="category-filters">
+                    <!-- Filtros de categoría se cargarán aquí si es necesario -->
+                </div>
+                <div id="products-grid" class="products-grid">
+                    <!-- Los productos se cargarán aquí por JS -->
+                </div>
+            </main>
+        </div>
+
+        <!-- MODAL DEL CARRITO -->
+        <div id="cart-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal-btn">×</span>
+                <h2>Tu Carrito</h2>
+                <div id="cart-items-container">
+                    <!-- Items del carrito se cargarán aquí -->
+                </div>
+                <p>Total: <span id="cart-total">$0.00</span></p>
+                <button class="btn-primary" id="checkout-btn">Finalizar Compra</button>
+            </div>
+        </div>
+
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,5 +1,8 @@
 import express from 'express';
 import { User } from '../models/index.js';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { hashPassword, verifyPassword } = require('../src/utils/security.cjs');
 
 const router = express.Router();
 
@@ -19,10 +22,11 @@ router.post('/register', async (req, res) => {
     }
 
     // Crear nuevo usuario
+    const hashedPassword = await hashPassword(password);
     const user = new User({
       username,
       email,
-      password_hash: password, // Nota: En producción, deberías hashear la contraseña
+      password_hash: hashedPassword,
       role,
       phone_number
     });
@@ -58,8 +62,8 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    // Nota: En producción, deberías verificar el hash de la contraseña
-    if (user.password_hash !== password) {
+    const isMatch = await verifyPassword(password, user.password_hash);
+    if (!isMatch) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 

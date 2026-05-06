@@ -7,6 +7,9 @@
 import express from 'express';       // Framework web Express
 import cors from 'cors';             // Middleware para manejar CORS
 import sqlite3 from 'sqlite3';       // Librería para SQLite
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { hashPassword, verifyPassword } = require('./src/utils/security.cjs');
 const { verbose } = sqlite3;
 const Database = verbose().Database;
 // --- Fin de importación de librerías ---
@@ -56,20 +59,25 @@ function createTables(database) {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
-    `, function(err) {
+    `, async function(err) {
       if (err) { console.error('Error creando tabla users:', err.message); }
       else {
         console.log('Tabla users verificada/creada.');
-        database.get("SELECT COUNT(*) AS count FROM users", (err, row) => {
+        database.get("SELECT COUNT(*) AS count FROM users", async (err, row) => {
           if (err) { console.error("Error contando usuarios:", err.message); return; }
           if (row.count === 0) {
             console.log("Tabla users vacía, insertando datos de prueba...");
+
+            const passSeller = await hashPassword('pass_seller');
+            const passBuyer = await hashPassword('pass_buyer');
+            const passDriver = await hashPassword('pass_driver');
+
             database.run("INSERT INTO users (username, email, password_hash, role, phone_number) VALUES (?, ?, ?, ?, ?)",
-              ['seller_user', 'seller@example.com', 'pass_seller', 'seller', '111222333']);
+              ['seller_user', 'seller@example.com', passSeller, 'seller', '111222333']);
             database.run("INSERT INTO users (username, email, password_hash, role, phone_number) VALUES (?, ?, ?, ?, ?)",
-              ['buyer_user', 'buyer@example.com', 'pass_buyer', 'buyer', '444555666']);
+              ['buyer_user', 'buyer@example.com', passBuyer, 'buyer', '444555666']);
             database.run("INSERT INTO users (username, email, password_hash, role, phone_number) VALUES (?, ?, ?, ?, ?)",
-              ['driver_user', 'driver@example.com', 'pass_driver', 'driver', '777888999']);
+              ['driver_user', 'driver@example.com', passDriver, 'driver', '777888999']);
             console.log("Usuarios por defecto (vendedor/comprador/driver) insertados.");
           }
         });
@@ -323,7 +331,7 @@ app.get('/api/products/:id', (req, res) => {
 });
 
 // Ruta para el registro de nuevos usuarios 
-app.post('/api/register', (req, res) => {
+app.post('/api/register', async (req, res) => {
   const { username, email, password, role, phone_number } = req.body;
   //Validacion de que todos los campos requeridos esten presentes
   if (!username || !email || !password || !role || !phone_number){
@@ -335,13 +343,17 @@ app.post('/api/register', (req, res) => {
     res.status(400).json({error: 'Rol invalido'});
     return;
   }
-  // Insertar el nuevo usuario en la base de datos
-  const sql = `INSERT INTO users (username, email, password_hash, role, phone_number)
-    VALUES (?, ?, ?, ?, ?)`;
-  const params = [username, email, password, role, phone_number]; // Usamos password para el prototipo pero es (INSEGURO)
 
-  // Ejecutar la insercion
-  db.run(sql, params, function(err){ // Usamos function() para acceder a this.lastID
+  try {
+    const hashedPassword = await hashPassword(password);
+
+    // Insertar el nuevo usuario en la base de datos
+    const sql = `INSERT INTO users (username, email, password_hash, role, phone_number)
+      VALUES (?, ?, ?, ?, ?)`;
+    const params = [username, email, hashedPassword, role, phone_number];
+
+    // Ejecutar la insercion
+    db.run(sql, params, function(err){ // Usamos function() para acceder a this.lastID
     if (err){
       // Manejar posibles errores, como nombres de ususarios/emails duplicados (SQLite Unique Constraints)
       if (err.message.includes('UNIQUE constraint failed')) {
@@ -352,7 +364,10 @@ app.post('/api/register', (req, res) => {
       return;
     } // si no hay errores, responder con estado 201 y el ID del nuevo usuario
     res.status(201).json({message: 'Usuario registrado exitosamente', userId: this.lastID}); // 201 es codigo de estado de creado
-  });
+    });
+  } catch (error) {
+    res.status(500).json({error: error.message});
+  }
 });
 //-Registro de usuarios Login              
 app.post('/api/login', (req, res) => {
@@ -367,12 +382,12 @@ app.post('/api/login', (req, res) => {
   }
 
   //Sentencia SQL para obtener el usuario por username o email
-  //Seleccionamos el id, username,role y la contraseña(insegura)
-  const sql = `SELECT id,username,role,password FROM users WHERE username = ? OR email = ?`;
+  //Seleccionamos el id, username,role y password_hash
+  const sql = `SELECT id,username,role,password_hash FROM users WHERE username = ? OR email = ?`;
   const params = [username_or_email, username_or_email]; //Usamos el mismo valor para buscar en ambos campos
 
   //Ejecutar la consulta para obtener una fila (el ususario)
-  db.get(sql, params, (err, userRow) => { // Usamos db.get por que esperamos 0 o 1 resultado
+  db.get(sql, params, async (err, userRow) => { // Usamos db.get por que esperamos 0 o 1 resultado
     if (err){
       res.status(500).json({error: err.message});
       return;
@@ -382,22 +397,25 @@ app.post('/api/login', (req, res) => {
       res.status(401).json({error: 'credenciales invalidas'}); //401 es codigo de error de no autorizado
       return;
     }
-    //Verificar la contraseña (INSEGURA PARA PROTOTIPO)
-    // En una app real, se deberia usar bcrypt.compare() para hashear y comparar las contraseñas
-    if (userRow.password_hash !== password){
-      // comparacion simple
-      // si la contraseña coincide, el login es exitoso
-      // Responder con el ID y Rol del usuario para que el frontend lo guarde ( simulando el login)
-      res.status(200).json({
-        message: 'login exitoso',
-        userId: userRow.id,
-        username: userRow.username,
-        role: userRow.role,
-      });
-    } else{
-      // Si la contraseña no coincide responder con error 401 
-      res.status(401).json({error: 'credenciales invalidas'}); //401 unauthorized (mismo mensaje para no dar pistas)
-      return;
+    //Verificar la contraseña
+    try {
+      const isMatch = await verifyPassword(password, userRow.password_hash);
+      if (isMatch){
+        // si la contraseña coincide, el login es exitoso
+        // Responder con el ID y Rol del usuario para que el frontend lo guarde ( simulando el login)
+        res.status(200).json({
+          message: 'login exitoso',
+          userId: userRow.id,
+          username: userRow.username,
+          role: userRow.role,
+        });
+      } else{
+        // Si la contraseña no coincide responder con error 401
+        res.status(401).json({error: 'credenciales invalidas'}); //401 unauthorized (mismo mensaje para no dar pistas)
+        return;
+      }
+    } catch (error) {
+      res.status(500).json({error: error.message});
     }
   });
 });
@@ -1072,4 +1090,3 @@ app.listen(PORT, () => {
 // el archivo database_schema.md pero igualemnte te las voy a dar para que puedas crear las tablas y columnas que necesita la aplicacion
 
 // para que puedas crear las tablas y columnas que necesita la aplicacion
-}); // Close the app.listen callback

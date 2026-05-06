@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { User, Product, Order, Address } from '../models/index.js';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { hashPassword } = require('../src/utils/security.cjs');
 
 dotenv.config();
 
@@ -23,13 +26,15 @@ const initDatabase = async () => {
 
     // Crear roles de usuario por defecto si no existen
     const roles = ['buyer', 'seller', 'driver'];
+    const hashedTempPassword = await hashPassword('temporary_password');
+
     for (const role of roles) {
       const roleExists = await User.findOne({ role });
       if (!roleExists) {
         await User.create({
           username: `admin_${role}`,
           email: `admin_${role}@alidez.com`,
-          password_hash: 'temporary_password', // Debe ser cambiado después
+          password_hash: hashedTempPassword,
           role,
           phone_number: '0000000000'
         });
